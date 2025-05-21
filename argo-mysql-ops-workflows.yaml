@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: argo-mysql-ops-operations
+  namespace: argo
+spec:
+  templates:
+  - name: run-query
+    inputs:
+      parameters:
+      - name: connection-string
+        # Format: host:port/database:user@password
+      - name: query
+    container:
+      image: argo-mysql-ops:latest
+      command: ["/scripts/run-query.sh"]
+      args: ["{{inputs.parameters.connection-string}}", "{{inputs.parameters.query}}"]
+
+  - name: backup-database
+    inputs:
+      parameters:
+      - name: connection-string
+      - name: backup-path
+    container:
+      image: argo-mysql-ops:latest
+      command: ["/scripts/backup-database.sh"]
+      args: ["{{inputs.parameters.connection-string}}", "{{inputs.parameters.backup-path}}"]
+      volumeMounts:
+      - name: backup-volume
+        mountPath: /backups
+    volumes:
+    - name: backup-volume
+      persistentVolumeClaim:
+        claimName: mysql-backups-pvc
+        
+  - name: restore-database
+    inputs:
+      parameters:
+      - name: connection-string
+      - name: backup-file
+    container:
+      image: argo-mysql-ops:latest
+      command: ["/scripts/restore-database.sh"]
+      args: ["{{inputs.parameters.connection-string}}", "{{inputs.parameters.backup-file}}"]
+      volumeMounts:
+      - name: backup-volume
+        mountPath: /backups
+    volumes:
+    - name: backup-volume
+      persistentVolumeClaim:
+        claimName: mysql-backups-pvc

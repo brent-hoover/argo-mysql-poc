@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argo-mysql-ops-api
+  namespace: argo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argo-mysql-ops-api
+  template:
+    metadata:
+      labels:
+        app: argo-mysql-ops-api
+    spec:
+      serviceAccountName: argo-mysql-ops-api-sa
+      containers:
+      - name: api
+        image: argo-mysql-ops-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argo-mysql-ops-api
+  namespace: argo
+spec:
+  selector:
+    app: argo-mysql-ops-api
+  ports:
+  - port: 80
+    targetPort: 5000
+  type: NodePort
