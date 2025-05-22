@@ -64,8 +64,6 @@ For more detailed installation options, see the [official Argo Workflows documen
 ### 2. Deploy Kubernetes Resources
 
 ```bash
-# Create the persistent volume claim for backups
-kubectl apply -f mysql-backups-pvc.yaml
 
 # Deploy the MySQL database with sample data
 kubectl apply -f mysql-deployment.yaml
