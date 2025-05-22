@@ -13,9 +13,8 @@ This project demonstrates how to use Argo Workflows to run controlled, parameter
 
 ## Components
 
-- **Flask API**: REST API for submitting database operations
+- **Combined Service Container**: Single container with both Flask API and MySQL client tools
 - **Argo Workflows**: Orchestration of database operations
-- **MySQL Operations Container**: Alpine-based container with MySQL client tools
 - **Operation Templates**: ConfigMap with pre-defined, parameterized SQL queries
 
 ## Prerequisites
@@ -72,20 +71,17 @@ kubectl apply -f operation-templates.yaml
 kubectl apply -f rbac.yaml
 ```
 
-### 3. Build Docker Images Locally
+### 3. Build Docker Image Locally
 
 ```bash
-# Build the MySQL operations image
-docker build -t argo-mysql-ops:latest -f Dockerfile .
+# Build the combined image
+docker build -t argo-mysql-ops-combined:latest -f Dockerfile .
 
-# Build the API image
-docker build -t argo-mysql-ops-api:latest -f Dockerfile.app .
-
-# Note: The deployment is configured to use these local images
+# Note: The deployment is configured to use this local image
 # with imagePullPolicy: IfNotPresent to avoid any need for a remote registry
 ```
 
-### 4. Deploy the API
+### 4. Deploy the Service
 
 ```bash
 # Use the included API deployment file
@@ -169,6 +165,9 @@ The system comes with pre-defined operations:
 For local development:
 
 ```bash
+# Install dependencies
+pip install -r requirements.txt
+
 # Run the API locally
 python app.py
 
@@ -182,6 +181,8 @@ curl -X POST http://localhost:5000/api/v1/mysql/operations \
     }
   }'
 ```
+
+Note: For local development that involves running SQL commands, ensure you have MySQL client tools installed on your machine.
 
 ## Monitoring Workflows
 
