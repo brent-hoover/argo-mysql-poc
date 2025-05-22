@@ -12,7 +12,7 @@ metadata:
   namespace: argo
 rules:
 - apiGroups: ["argoproj.io"]
-  resources: ["workflows", "workflowtemplates"]
+  resources: ["workflows", "workflowtemplates", "workflowtaskresults"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 - apiGroups: [""]
   resources: ["configmaps", "secrets"]
@@ -34,4 +34,33 @@ subjects:
 roleRef:
   kind: Role
   name: argo-mysql-ops-api-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: workflow-role
+  namespace: argo
+rules:
+- apiGroups: ["argoproj.io"]
+  resources: ["workflows", "workflowtemplates", "workflowtaskresults"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "secrets", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: workflow-role-binding
+  namespace: argo
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: argo
+roleRef:
+  kind: Role
+  name: workflow-role
   apiGroup: rbac.authorization.k8s.io

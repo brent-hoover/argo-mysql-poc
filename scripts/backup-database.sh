@@ -2,11 +2,15 @@
 #!/bin/bash
 set -e
 
-HOST=$(echo $1 | cut -d: -f1)
-PORT=$(echo $1 | cut -d: -f2 | cut -d/ -f1)
-DB=$(echo $1 | cut -d/ -f2 | cut -d: -f1)
-USER=$(echo $1 | cut -d: -f2 | cut -d@ -f1)
-PASSWORD=$(echo $1 | cut -d@ -f2)
+# Hard-coded values for now
+HOST="mysql"
+PORT="3306" 
+DB="demo"
+USER="root"
+PASSWORD="password123"
+
+# Debug info about what was passed
+echo "Received connection string: $1"
 BACKUP_PATH=$2
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

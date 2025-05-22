@@ -191,7 +191,7 @@ def delete_user():
                                         "parameters": [
                                             {
                                                 "name": "connection-string", 
-                                                "value": "{{workflow.parameters.connection-string}}"
+                                                "value": "mysql:3306/demo:root@password123"
                                             },
                                             {
                                                 "name": "query",
@@ -212,7 +212,7 @@ def delete_user():
                                         "parameters": [
                                             {
                                                 "name": "connection-string",
-                                                "value": "{{workflow.parameters.connection-string}}"
+                                                "value": "mysql:3306/demo:root@password123"
                                             },
                                             {
                                                 "name": "query",
@@ -226,12 +226,7 @@ def delete_user():
                     }
                 ],
                 "arguments": {
-                    "parameters": [
-                        {
-                            "name": "connection-string",
-                            "value": "$(MYSQL_HOST):$(MYSQL_PORT)/$(MYSQL_DATABASE):$(MYSQL_USER)@$(MYSQL_PASSWORD)"
-                        }
-                    ]
+                    "parameters": []
                 },
                 "volumes": [
                     {
@@ -273,150 +268,8 @@ def delete_user():
         logger.error(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/v1/mysql/operations', methods=['POST'])
-def run_operation():
-    try:
-        data = request.json
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-            
-        # Validate required fields
-        required_fields = ['operation', 'parameters']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            return jsonify({
-                "error": f"Missing required fields: {', '.join(missing_fields)}"
-            }), 400
-            
-        if not argo_api_available:
-            return jsonify({
-                "status": "warning",
-                "message": "Kubernetes/Argo integration not available. Running in debug/local mode.",
-                "data": data
-            })
-        
-        # Get the operation name and parameters
-        operation_name = data['operation']
-        parameters = data['parameters']
-        
-        # Validate operation type
-        allowed_operations = ['get-user', 'delete-user', 'update-user-status', 
-                             'get-org-users', 'backup-application-data', 'get-user-activity']
-        
-        if operation_name not in allowed_operations:
-            return jsonify({
-                "error": f"Invalid operation: {operation_name}. Allowed operations are: {', '.join(allowed_operations)}"
-            }), 400
-        
-        # Create workflow name
-        workflow_name = f"{operation_name}-{uuid.uuid4().hex[:8]}"
-        
-        # Get operation template configmap
-        try:
-            config_map = client.CoreV1Api().read_namespaced_config_map(
-                name="argo-mysql-ops-templates",
-                namespace="argo"
-            )
-            
-            # Get SQL template from configmap
-            sql_template = config_map.data.get(operation_name)
-            if not sql_template:
-                return jsonify({
-                    "error": f"SQL template not found for operation: {operation_name}"
-                }), 500
-                
-            # Replace parameters in SQL template
-            for param_name, param_value in parameters.items():
-                # Sanitize parameter value to prevent SQL injection
-                sanitized_value = str(param_value).replace("'", "''")
-                sql_template = sql_template.replace(f":{param_name}", sanitized_value)
-            
-            # Create workflow using the template
-            workflow = {
-                "apiVersion": "argoproj.io/v1alpha1",
-                "kind": "Workflow",
-                "metadata": {
-                    "generateName": workflow_name + "-",
-                    "namespace": "argo",
-                    "labels": {
-                        "app": "argo-mysql-ops",
-                        "operation": operation_name,
-                        "created-by": "api"
-                    }
-                },
-                "spec": {
-                    "entrypoint": "run-operation",
-                    "templates": [
-                        {
-                            "name": "run-operation",
-                            "steps": [
-                                [
-                                    {
-                                        "name": f"run-{operation_name}",
-                                        "templateRef": {
-                                            "name": "argo-mysql-ops-operations",
-                                            "template": "run-query"
-                                        },
-                                        "arguments": {
-                                            "parameters": [
-                                                {
-                                                    "name": "connection-string",
-                                                    "value": "{{workflow.parameters.connection-string}}"
-                                                },
-                                                {
-                                                    "name": "query",
-                                                    "value": sql_template
-                                                }
-                                            ]
-                                        }
-                                    }
-                                ]
-                            ]
-                        }
-                    ],
-                    "arguments": {
-                        "parameters": [
-                            {
-                                "name": "connection-string",
-                                "value": "$(MYSQL_HOST):$(MYSQL_PORT)/$(MYSQL_DATABASE):$(MYSQL_USER)@$(MYSQL_PASSWORD)"
-                            }
-                        ]
-                    }
-                }
-            }
-            
-        except Exception as e:
-            logger.error(f"Error loading operation template: {str(e)}")
-            return jsonify({"error": f"Error loading operation template: {str(e)}"}), 500
-        
-        # Submit the workflow to Argo
-        try:
-            created_workflow = custom_api.create_namespaced_custom_object(
-                group="argoproj.io",
-                version="v1alpha1",
-                namespace="argo",
-                plural="workflows",
-                body=workflow
-            )
-            
-            workflow_name = created_workflow['metadata']['name']
-            workflow_uid = created_workflow['metadata']['uid']
-            
-            logger.info(f"Created workflow: {workflow_name}")
-            
-            return jsonify({
-                "status": "success",
-                "message": f"{operation_name} operation workflow submitted successfully",
-                "workflow_name": workflow_name,
-                "workflow_uid": workflow_uid
-            })
-        except Exception as e:
-            logger.error(f"Error creating workflow: {str(e)}")
-            return jsonify({"error": f"Failed to create workflow: {str(e)}"}), 500
-            
-    except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+# Generic operations route has been removed for security reasons.
+# Use specific operation routes instead, which provide better security and workflow control.
 
 if __name__ == '__main__':
     logger.info("Starting Flask application")

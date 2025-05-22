@@ -1,12 +1,21 @@
-# scripts/run-query.sh
 #!/bin/bash
+# scripts/run-query.sh
 set -e
 
-HOST=$(echo $1 | cut -d: -f1)
-PORT=$(echo $1 | cut -d: -f2 | cut -d/ -f1)
-DB=$(echo $1 | cut -d/ -f2 | cut -d: -f1)
-USER=$(echo $1 | cut -d: -f2 | cut -d@ -f1)
-PASSWORD=$(echo $1 | cut -d@ -f2)
+# Debug information
+echo "Running query script with connection string: $1"
+echo "Query: $2"
+
+# Hard-coded values for now
+HOST="mysql"
+PORT="3306" 
+DB="demo"
+USER="root"
+PASSWORD="password123"
+
+# Debug info about what was passed
+echo "Received connection string: $1"
 QUERY=$2
 
+echo "Connecting to MySQL: Host=$HOST, Port=$PORT, DB=$DB, User=$USER"
 mysql -h $HOST -P $PORT -u $USER -p$PASSWORD $DB -e "$QUERY"
