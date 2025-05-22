@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install MySQL client and other required utilities
 RUN apt-get update && apt-get install -y \
-    mysql-client \
+    default-mysql-client \
     bash \
     curl \
     jq \
@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy scripts and set permissions
 COPY scripts/ /app/scripts/
-RUN chmod +x /app/scripts/*.sh
+# Fix script permissions and line endings
+RUN chmod +x /app/scripts/*.sh && \
+    sed -i 's/\r$//' /app/scripts/*.sh
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
