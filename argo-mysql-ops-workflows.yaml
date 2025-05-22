@@ -12,8 +12,8 @@ spec:
         # Format: host:port/database:user@password
       - name: query
     container:
-      image: argo-mysql-ops:latest
-      command: ["/scripts/run-query.sh"]
+      image: argo-mysql-ops-combined:latest
+      command: ["/app/scripts/run-query.sh"]
       args: ["{{inputs.parameters.connection-string}}", "{{inputs.parameters.query}}"]
 
   - name: backup-database
@@ -22,8 +22,8 @@ spec:
       - name: connection-string
       - name: backup-path
     container:
-      image: argo-mysql-ops:latest
-      command: ["/scripts/backup-database.sh"]
+      image: argo-mysql-ops-combined:latest
+      command: ["/app/scripts/backup-database.sh"]
       args: ["{{inputs.parameters.connection-string}}", "{{inputs.parameters.backup-path}}"]
       volumeMounts:
       - name: backup-volume
@@ -39,8 +39,8 @@ spec:
       - name: connection-string
       - name: backup-file
     container:
-      image: argo-mysql-ops:latest
-      command: ["/scripts/restore-database.sh"]
+      image: argo-mysql-ops-combined:latest
+      command: ["/app/scripts/restore-database.sh"]
       args: ["{{inputs.parameters.connection-string}}", "{{inputs.parameters.backup-file}}"]
       volumeMounts:
       - name: backup-volume
