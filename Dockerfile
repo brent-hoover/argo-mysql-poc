@@ -1,30 +1,40 @@
-FROM python:3.9-slim
+# Build stage
+FROM golang:1.21-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Install git (needed for go mod download)
+RUN apk add --no-cache git
+
+# Copy go mod file and source code
+COPY go.mod main.go ./
+
+# Download dependencies (this will create go.sum)
+RUN go mod tidy && go mod download
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates for HTTPS requests and mysql client
+RUN apk --no-cache add ca-certificates mysql-client
 
 WORKDIR /app
 
-# Install MySQL client and other required utilities
-RUN apt-get update && apt-get install -y \
-    default-mysql-client \
-    bash \
-    curl \
-    jq \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the binary from builder stage
+COPY --from=builder /app/main .
 
-# Copy scripts and set permissions
-COPY scripts/ /app/scripts/
-# Fix script permissions and line endings
-RUN chmod +x /app/scripts/*.sh && \
-    sed -i 's/\r$//' /app/scripts/*.sh
+# Copy scripts directory if it exists
+COPY scripts/ ./scripts/
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Make sure scripts are executable
+RUN chmod +x ./scripts/*.sh
 
-# Copy application code
-COPY app.py .
+# Expose port
+EXPOSE 5000
 
-# Set environment variable for scripts path
-ENV SCRIPTS_PATH=/app/scripts
-
-# Run the application
-CMD ["python", "app.py"]
+# Run the binary
+CMD ["./main"]
