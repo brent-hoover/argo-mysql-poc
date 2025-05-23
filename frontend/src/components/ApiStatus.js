@@ -10,7 +10,8 @@ function ApiStatus() {
 
   const fetchApiStatus = async () => {
     try {
-      const response = await fetch('/api/v1/kubernetes/status');
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+      const response = await fetch(`${apiBaseUrl}/api/v1/kubernetes/status`);
       const data = await response.json();
       setStatus(data);
     } catch (error) {

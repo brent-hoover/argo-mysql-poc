@@ -11,7 +11,8 @@ function App() {
   const fetchWorkflows = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/workflows');
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+      const response = await fetch(`${apiBaseUrl}/api/v1/workflows`);
       const data = await response.json();
       if (data.status === 'success') {
         setWorkflows(data.workflows);
@@ -27,8 +28,8 @@ function App() {
   const handleWorkflowSubmitted = (workflowData) => {
     // Add the new workflow to the list immediately
     const newWorkflow = {
-      name: workflowData.workflow_name,
-      uid: workflowData.workflow_uid,
+      name: workflowData.workflow_name || `delete-user-${workflowData.user_id}-${Date.now()}`,
+      uid: workflowData.workflow_uid || workflowData.event_id,
       status: 'Pending',
       startedAt: new Date().toISOString(),
       finishedAt: null,
@@ -37,14 +38,18 @@ function App() {
     setWorkflows(prev => [newWorkflow, ...prev]);
     
     // Refresh the list after a short delay to get updated status
-    setTimeout(fetchWorkflows, 2000);
+    setTimeout(() => {
+      fetchWorkflows().catch(console.error);
+    }, 2000);
   };
 
   useEffect(() => {
-    fetchWorkflows();
+    fetchWorkflows().catch(console.error);
     
     // Set up periodic refresh every 10 seconds
-    const interval = setInterval(fetchWorkflows, 10000);
+    const interval = setInterval(() => {
+      fetchWorkflows().catch(console.error);
+    }, 10000);
     
     return () => clearInterval(interval);
   }, []);

@@ -155,3 +155,11 @@ code {
   border-radius: 4px;
   margin-bottom: 20px;
 }
+
+.warning {
+  background-color: #fff3e0;
+  color: #f57c00;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}

@@ -19,7 +19,8 @@ function DeleteUserForm({ onWorkflowSubmitted }) {
     setMessage('');
 
     try {
-      const response = await fetch('/api/v1/mysql/operations/delete-user', {
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
+      const response = await fetch(`${apiBaseUrl}/api/v1/mysql/operations/delete-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -31,9 +32,9 @@ function DeleteUserForm({ onWorkflowSubmitted }) {
 
       const data = await response.json();
 
-      if (response.ok && data.status === 'success') {
-        setMessage(`Workflow submitted successfully! Event ID: ${data.event_id || 'N/A'}`);
-        setMessageType('success');
+      if (response.ok && (data.status === 'success' || data.status === 'warning')) {
+        setMessage(data.message || `Operation submitted successfully! Event ID: ${data.event_id || 'N/A'}`);
+        setMessageType(data.status === 'warning' ? 'warning' : 'success');
         setUserId('');
         
         // Notify parent component
@@ -41,7 +42,7 @@ function DeleteUserForm({ onWorkflowSubmitted }) {
           onWorkflowSubmitted(data);
         }
       } else {
-        setMessage(data.error || 'Failed to submit workflow');
+        setMessage(data.error || data.message || 'Failed to submit workflow');
         setMessageType('error');
       }
     } catch (error) {
