@@ -153,116 +153,163 @@ def delete_user():
                 "data": data
             })
         
-        # Create workflow name
-        workflow_name = f"delete-user-{uuid.uuid4().hex[:8]}"
+        # Generate a unique event ID for tracking
+        event_id = uuid.uuid4().hex[:8]
         
-        # Create a workflow using the predefined template
-        workflow = {
-            "apiVersion": "argoproj.io/v1alpha1",
-            "kind": "Workflow",
-            "metadata": {
-                "generateName": workflow_name + "-",
-                "namespace": "argo",
-                "labels": {
-                    "app": "argo-mysql-ops",
-                    "operation": "delete-user",
-                    "created-by": "api",
-                    "user-id": str(data['user_id'])
-                }
-            },
-            "spec": {
-                "entrypoint": "delete-user-workflow",
-                "templates": [
-                    {
-                        "name": "delete-user-workflow",
-                        "steps": [
-                            [
-                                {
-                                    "name": "backup-user-data",
-                                    "templateRef": {
-                                        "name": "argo-mysql-ops-operations", 
-                                        "template": "run-query"
-                                    },
-                                    "arguments": {
-                                        "parameters": [
-                                            {
-                                                "name": "connection-string", 
-                                                "value": "mysql:3306/demo:root@password123"
-                                            },
-                                            {
-                                                "name": "query",
-                                                "value": f"SELECT * FROM users WHERE id = {data['user_id']};"
-                                            }
-                                        ]
-                                    }
-                                }
-                            ],
-                            [
-                                {
-                                    "name": "delete-user",
-                                    "templateRef": {
-                                        "name": "argo-mysql-ops-operations",
-                                        "template": "run-query"
-                                    },
-                                    "arguments": {
-                                        "parameters": [
-                                            {
-                                                "name": "connection-string",
-                                                "value": "mysql:3306/demo:root@password123"
-                                            },
-                                            {
-                                                "name": "query",
-                                                "value": f"DELETE FROM users WHERE id = {data['user_id']};"
-                                            }
-                                        ]
-                                    }
-                                }
-                            ]
-                        ]
-                    }
-                ],
-                "arguments": {
-                    "parameters": []
-                },
-                "volumes": [
-                    {
-                        "name": "mysql-creds",
-                        "secret": {
-                            "secretName": "mysql-credentials"
-                        }
-                    }
-                ]
-            }
-        }
-        
-        # Submit the workflow to Argo
+        # Send event to Argo Events webhook instead of creating workflow directly
         try:
-            created_workflow = custom_api.create_namespaced_custom_object(
-                group="argoproj.io",
-                version="v1alpha1",
-                namespace="argo",
-                plural="workflows",
-                body=workflow
+            import requests
+            
+            # Event payload for the webhook
+            event_payload = {
+                "user_id": data['user_id'],
+                "event_id": event_id,
+                "timestamp": __import__('datetime').datetime.utcnow().isoformat() + 'Z',
+                "operation": "delete-user"
+            }
+            
+            # Send to Argo Events webhook (assuming port-forward is set up)
+            # In production, this would be the actual service endpoint
+            webhook_url = "http://mysql-ops-webhook-eventsource-svc.argo-events.svc.cluster.local:12000/delete-user"
+            
+            response = requests.post(
+                webhook_url,
+                json=event_payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
             )
             
-            workflow_name = created_workflow['metadata']['name']
-            workflow_uid = created_workflow['metadata']['uid']
-            
-            logger.info(f"Created workflow: {workflow_name}")
-            
-            return jsonify({
-                "status": "success",
-                "message": "Delete user workflow submitted successfully",
-                "workflow_name": workflow_name,
-                "workflow_uid": workflow_uid
-            })
+            if response.status_code == 200:
+                logger.info(f"Event sent successfully: {event_id}")
+                return jsonify({
+                    "status": "success",
+                    "message": "Delete user event submitted successfully",
+                    "event_id": event_id,
+                    "user_id": data['user_id']
+                })
+            else:
+                logger.error(f"Failed to send event: {response.status_code} - {response.text}")
+                return jsonify({
+                    "error": f"Failed to send event: {response.status_code}"
+                }), 500
+                
+        except ImportError:
+            logger.warning("requests library not available, falling back to direct workflow creation")
+            # Fallback to direct workflow creation if requests is not available
+            return _create_workflow_directly(data)
         except Exception as e:
-            logger.error(f"Error creating workflow: {str(e)}")
-            return jsonify({"error": f"Failed to create workflow: {str(e)}"}), 500
+            logger.error(f"Error sending event to webhook: {str(e)}")
+            return jsonify({"error": f"Failed to send event: {str(e)}"}), 500
             
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+def _create_workflow_directly(data):
+    """Fallback method to create workflow directly (for testing/compatibility)"""
+    workflow_name = f"delete-user-{uuid.uuid4().hex[:8]}"
+    
+    workflow = {
+        "apiVersion": "argoproj.io/v1alpha1",
+        "kind": "Workflow",
+        "metadata": {
+            "generateName": workflow_name + "-",
+            "namespace": "argo",
+            "labels": {
+                "app": "argo-mysql-ops",
+                "operation": "delete-user",
+                "created-by": "api-fallback",
+                "user-id": str(data['user_id'])
+            }
+        },
+        "spec": {
+            "entrypoint": "delete-user-workflow",
+            "templates": [
+                {
+                    "name": "delete-user-workflow",
+                    "steps": [
+                        [
+                            {
+                                "name": "backup-user-data",
+                                "templateRef": {
+                                    "name": "argo-mysql-ops-operations", 
+                                    "template": "run-query"
+                                },
+                                "arguments": {
+                                    "parameters": [
+                                        {
+                                            "name": "connection-string", 
+                                            "value": "mysql:3306/demo:root@password123"
+                                        },
+                                        {
+                                            "name": "query",
+                                            "value": f"SELECT * FROM users WHERE id = {data['user_id']};"
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        [
+                            {
+                                "name": "delete-user",
+                                "templateRef": {
+                                    "name": "argo-mysql-ops-operations",
+                                    "template": "run-query"
+                                },
+                                "arguments": {
+                                    "parameters": [
+                                        {
+                                            "name": "connection-string",
+                                            "value": "mysql:3306/demo:root@password123"
+                                        },
+                                        {
+                                            "name": "query",
+                                            "value": f"DELETE FROM users WHERE id = {data['user_id']};"
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    ]
+                }
+            ],
+            "arguments": {
+                "parameters": []
+            },
+            "volumes": [
+                {
+                    "name": "mysql-creds",
+                    "secret": {
+                        "secretName": "mysql-credentials"
+                    }
+                }
+            ]
+        }
+    }
+    
+    try:
+        created_workflow = custom_api.create_namespaced_custom_object(
+            group="argoproj.io",
+            version="v1alpha1",
+            namespace="argo",
+            plural="workflows",
+            body=workflow
+        )
+        
+        workflow_name = created_workflow['metadata']['name']
+        workflow_uid = created_workflow['metadata']['uid']
+        
+        logger.info(f"Created workflow directly: {workflow_name}")
+        
+        return jsonify({
+            "status": "success",
+            "message": "Delete user workflow submitted successfully (direct mode)",
+            "workflow_name": workflow_name,
+            "workflow_uid": workflow_uid
+        })
+    except Exception as e:
+        logger.error(f"Error creating workflow: {str(e)}")
+        return jsonify({"error": f"Failed to create workflow: {str(e)}"}), 500
 
 # Generic operations route has been removed for security reasons.
 # Use specific operation routes instead, which provide better security and workflow control.

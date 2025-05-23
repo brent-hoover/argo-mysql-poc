@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: mysql-ops-webhook
+  namespace: argo-events
+spec:
+  service:
+    ports:
+      - port: 12000
+        targetPort: 12000
+  webhook:
+    # EventSource for delete-user operations
+    delete-user:
+      port: "12000"
+      endpoint: /delete-user
+      method: POST
