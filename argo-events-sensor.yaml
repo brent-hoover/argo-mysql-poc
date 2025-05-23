@@ -1,0 +1,66 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: mysql-ops-sensor
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: operate-workflow-sa
+  dependencies:
+    - name: delete-user-dep
+      eventSourceName: mysql-ops-webhook
+      eventName: delete-user
+  triggers:
+    - template:
+        name: delete-user-workflow-trigger
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: delete-user-
+                namespace: argo
+                labels:
+                  app: argo-mysql-ops
+                  operation: delete-user
+                  created-by: argo-events
+              spec:
+                entrypoint: delete-user-workflow
+                templates:
+                  - name: delete-user-workflow
+                    steps:
+                      - - name: backup-user-data
+                          templateRef:
+                            name: argo-mysql-ops-operations
+                            template: run-query
+                          arguments:
+                            parameters:
+                              - name: connection-string
+                                value: "mysql:3306/demo:root@password123"
+                              - name: query
+                                value: "SELECT * FROM users WHERE id = {{workflow.parameters.user_id}};"
+                      - - name: delete-user
+                          templateRef:
+                            name: argo-mysql-ops-operations
+                            template: run-query
+                          arguments:
+                            parameters:
+                              - name: connection-string
+                                value: "mysql:3306/demo:root@password123"
+                              - name: query
+                                value: "DELETE FROM users WHERE id = {{workflow.parameters.user_id}};"
+                arguments:
+                  parameters:
+                    - name: user_id
+                      value: "1"
+                volumes:
+                  - name: mysql-creds
+                    secret:
+                      secretName: mysql-credentials
+          parameters:
+            - src:
+                dependencyName: delete-user-dep
+                dataKey: body.user_id
+              dest: spec.arguments.parameters.0.value

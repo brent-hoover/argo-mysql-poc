@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventBus
+metadata:
+  name: default
+  namespace: argo-events
+spec:
+  jetstream:
+    version: "2.10.10"
+    # Single replica for local testing
+    replicas: 1
+    # Smaller storage for local
+    persistence:
+      storageClassName: standard
+      accessMode: ReadWriteOnce
+      volumeSize: 1Gi
+    # Reduced resources for local
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+    # Stream configuration for single node mode
+    streamConfig: |
+      replicas: 1
+      maxAge: 72h
+      maxMsgs: 1000
