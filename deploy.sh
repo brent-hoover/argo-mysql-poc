@@ -223,7 +223,6 @@ log "Deploying Kubernetes resources..."
 kubectl apply -f mysql-secrets.yaml
 kubectl apply -f mysql-deployment.yaml
 kubectl apply -f argo-mysql-ops-workflows.yaml
-kubectl apply -f operation-templates.yaml
 kubectl apply -f rbac.yaml
 
 # Wait for MySQL to be ready

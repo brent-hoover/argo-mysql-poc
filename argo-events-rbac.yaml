@@ -5,11 +5,12 @@ metadata:
   namespace: argo-events
 ---
 # in order for the sensor to be able to create workflows in the argo namespace,
-# we need to give it the ability to do so
+# we need to create a Role in the argo namespace (where workflows are created)
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: operate-workflow-role
+  namespace: argo  # This Role is in the argo namespace where workflows are created
 rules:
   # Allow sensor to create workflows
   - apiGroups:
@@ -35,21 +36,15 @@ rules:
     - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: operate-workflow-role-binding
+  namespace: argo  # RoleBinding is in the namespace where access is needed
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: operate-workflow-role
 subjects:
   - kind: ServiceAccount
     name: operate-workflow-sa
-    namespace: argo-events
----
-# Service account for Redis eventbus
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: redis
-  namespace: argo-events
+    namespace: argo-events  # SA is from argo-events namespace
