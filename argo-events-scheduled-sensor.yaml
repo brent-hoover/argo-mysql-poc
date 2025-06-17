@@ -1,0 +1,116 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Sensor
+metadata:
+  name: scheduled-operations-sensor
+  namespace: argo-events
+spec:
+  template:
+    serviceAccountName: operate-workflow-sa
+  
+  dependencies:
+    - name: health-check-dep
+      eventSourceName: mysql-ops-calendar-eventsource
+      eventName: demo-health-check
+    
+    - name: user-count-dep
+      eventSourceName: mysql-ops-calendar-eventsource
+      eventName: demo-user-count
+  
+  triggers:
+    # Health check trigger - runs every 2 minutes
+    - template:
+        name: health-check-trigger
+        conditions: "health-check-dep"
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: health-check-
+                namespace: argo
+                labels:
+                  app: argo-mysql-ops
+                  operation: health-check
+                  schedule: demo
+                  created-by: argo-events
+              spec:
+                entrypoint: health-check-workflow
+                templates:
+                  - name: health-check-workflow
+                    steps:
+                      - - name: check-database-connection
+                          templateRef:
+                            name: argo-mysql-ops-operations
+                            template: run-query
+                          arguments:
+                            parameters:
+                              - name: connection-string
+                                value: "mysql:3306/demo:root@password123"
+                              - name: query
+                                value: "SELECT 'Database is healthy!' as status, NOW() as checked_at, CONNECTION_ID() as connection_id;"
+                      
+                      - - name: check-table-counts
+                          templateRef:
+                            name: argo-mysql-ops-operations
+                            template: run-query
+                          arguments:
+                            parameters:
+                              - name: connection-string
+                                value: "mysql:3306/demo:root@password123"
+                              - name: query
+                                value: "SELECT 'users' as table_name, COUNT(*) as record_count FROM users;"
+                volumes:
+                  - name: mysql-creds
+                    secret:
+                      secretName: mysql-credentials
+    
+    # User count trigger - runs every 5 minutes
+    - template:
+        name: user-count-trigger
+        conditions: "user-count-dep"
+        argoWorkflow:
+          operation: submit
+          source:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Workflow
+              metadata:
+                generateName: user-count-
+                namespace: argo
+                labels:
+                  app: argo-mysql-ops
+                  operation: user-count
+                  schedule: demo
+                  created-by: argo-events
+              spec:
+                entrypoint: user-count-workflow
+                templates:
+                  - name: user-count-workflow
+                    steps:
+                      - - name: count-active-users
+                          templateRef:
+                            name: argo-mysql-ops-operations
+                            template: run-query
+                          arguments:
+                            parameters:
+                              - name: connection-string
+                                value: "mysql:3306/demo:root@password123"
+                              - name: query
+                                value: "SELECT status, COUNT(*) as count FROM users GROUP BY status ORDER BY status;"
+                      
+                      - - name: recent-activity
+                          templateRef:
+                            name: argo-mysql-ops-operations
+                            template: run-query
+                          arguments:
+                            parameters:
+                              - name: connection-string
+                                value: "mysql:3306/demo:root@password123"
+                              - name: query
+                                value: "SELECT 'Total users' as metric, COUNT(*) as value FROM users UNION SELECT 'Active users', COUNT(*) FROM users WHERE status = 'active';"
+                volumes:
+                  - name: mysql-creds
+                    secret:
+                      secretName: mysql-credentials

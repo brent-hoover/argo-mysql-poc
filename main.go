@@ -527,13 +527,32 @@ func main() {
 		c.Next()
 	})
 
-	// Routes
-	r.GET("/", rootHandler)
+	// API Routes
+	api := r.Group("/api/v1")
+	{
+		api.GET("/kubernetes/status", statusHandler)
+		api.GET("/workflows", listWorkflowsHandler)
+		api.GET("/workflows/:name", getWorkflowHandler)
+		api.POST("/mysql/operations/delete-user", deleteUserHandler)
+	}
+
+	// Health check route (outside API group)
 	r.GET("/health", healthHandler)
-	r.GET("/api/v1/kubernetes/status", statusHandler)
-	r.GET("/api/v1/workflows", listWorkflowsHandler)
-	r.GET("/api/v1/workflows/:name", getWorkflowHandler)
-	r.POST("/api/v1/mysql/operations/delete-user", deleteUserHandler)
+
+	// Serve static frontend files
+	r.Static("/static", "./static")
+	
+	// Serve frontend for all non-API routes (React Router)
+	r.NoRoute(func(c *gin.Context) {
+		// If request is for an API route, return 404
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: "API endpoint not found"})
+			return
+		}
+		
+		// Otherwise serve React app (for client-side routing)
+		c.File("./static/index.html")
+	})
 
 	// Start server
 	log.Println("Starting Argo MySQL Operations API server on :5000")

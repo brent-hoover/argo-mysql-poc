@@ -16,7 +16,7 @@ spec:
       serviceAccountName: argo-mysql-ops-api-sa
       containers:
       - name: api
-        image: argo-mysql-ops:latest
+        image: argo-mysql-ops-combined:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000

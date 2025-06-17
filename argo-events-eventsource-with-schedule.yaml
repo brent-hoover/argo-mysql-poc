@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: mysql-ops-webhook-eventsource
+  namespace: argo-events
+spec:
+  service:
+    ports:
+      - port: 12000
+        targetPort: 12000
+  
+  # Webhook events
+  webhook:
+    delete-user:
+      port: "12000"
+      endpoint: /delete-user
+      method: POST
+---
+apiVersion: argoproj.io/v1alpha1
+kind: EventSource
+metadata:
+  name: mysql-ops-calendar-eventsource
+  namespace: argo-events
+spec:
+  # Scheduled events for demo
+  calendar:
+    # Demo health check every 2 minutes
+    demo-health-check:
+      schedule: "*/2 * * * *"  # Every 2 minutes
+      timezone: "UTC"
+      metadata:
+        operation: "health-check"
+        frequency: "demo"
+        description: "Scheduled health check for demo"
+    
+    # Demo user count every 5 minutes
+    demo-user-count:
+      schedule: "*/5 * * * *"  # Every 5 minutes
+      timezone: "UTC"
+      metadata:
+        operation: "user-count"
+        frequency: "demo"
+        description: "Count active users for demo"

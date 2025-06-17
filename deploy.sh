@@ -40,9 +40,8 @@ wait_for_pod() {
     local timeout=${3:-300}
     
     log "Waiting for pod with label $label in namespace $namespace to be ready..."
-    kubectl wait --for=condition=ready pod -l "$label" -n "$namespace" --timeout="${timeout}s" || {
-        error "Pod with label $label in namespace $namespace failed to become ready within ${timeout} seconds"
-    }
+    kubectl wait --for=condition=ready pod -l "$label" -n "$namespace" --timeout="${timeout}s"
+    return $?
 }
 
 # Function to check if namespace exists
@@ -119,7 +118,7 @@ if [ "$SKIP_PREREQ_CHECK" = false ]; then
     info "Connected to cluster: $(kubectl config current-context)"
     
     # Detect Kubernetes environment
-    if kubectl get nodes -o wide | grep -q "docker-desktop"; then
+    if kubectl config current-context | grep -q "docker-desktop"; then
         K8S_ENV="docker-desktop"
         info "Detected Docker Desktop Kubernetes"
     elif minikube status >/dev/null 2>&1; then
@@ -212,8 +211,11 @@ if [ "$SKIP_ARGO_INSTALL" = false ]; then
     fi
     
     # Wait for Argo Workflows to be ready
-    wait_for_pod argo "app.kubernetes.io/name=argo-workflows-server" 180
-    wait_for_pod argo "app.kubernetes.io/name=argo-workflows-workflow-controller" 180
+    log "Waiting for Argo Workflows controller to be ready..."
+    kubectl wait --for=condition=available deployment/argo-workflows-workflow-controller -n argo --timeout=300s
+    
+    log "Waiting for Argo Workflows server to be ready..."
+    kubectl wait --for=condition=available deployment/argo-workflows-server -n argo --timeout=300s
 fi
 
 # Step 4: Deploy Kubernetes resources
@@ -226,7 +228,14 @@ kubectl apply -f argo-mysql-ops-workflows.yaml
 kubectl apply -f rbac.yaml
 
 # Wait for MySQL to be ready
-wait_for_pod argo "app=mysql" 120
+if ! wait_for_pod argo "app=mysql" 120; then
+    warning "MySQL readiness check timed out, checking if pod is running..."
+    if kubectl get pods -n argo -l "app=mysql" | grep -q "Running"; then
+        log "MySQL is running, continuing deployment..."
+    else
+        error "MySQL failed to start"
+    fi
+fi
 
 # Fix MySQL authentication for MariaDB client compatibility
 log "Configuring MySQL authentication for MariaDB client compatibility..."
@@ -254,26 +263,33 @@ if [ "$SKIP_ARGO_INSTALL" = false ]; then
     kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-events/stable/manifests/install.yaml
     
     # Wait for controller to be ready
-    wait_for_pod argo-events "app=controller-manager" 120
+    if ! wait_for_pod argo-events "app=controller-manager" 120; then
+        warning "Argo Events controller readiness check timed out, checking if pod is running..."
+        if kubectl get pods -n argo-events -l "app=controller-manager" | grep -q "Running"; then
+            log "Argo Events controller is running, continuing deployment..."
+        else
+            error "Argo Events controller failed to start"
+        fi
+    fi
 fi
 
 # Step 6: Deploy Argo Events components
-log "Deploying Argo Events components..."
+if [ "$SKIP_ARGO_INSTALL" = false ]; then
+    log "Deploying Argo Events components..."
 
-kubectl apply -f argo-events-eventbus-local.yaml
-kubectl apply -f argo-events-eventsource.yaml
-kubectl apply -f argo-events-sensor.yaml
-kubectl apply -f argo-events-rbac.yaml
+    kubectl apply -f argo-events-eventbus-local.yaml
+    kubectl apply -f argo-events-eventsource-with-schedule.yaml
+    kubectl apply -f argo-events-sensor.yaml
+    kubectl apply -f argo-events-scheduled-sensor.yaml
+    kubectl apply -f argo-events-rbac.yaml
 
-# Wait for EventBus to be ready
-sleep 5
-wait_for_pod argo-events "eventbus-name=default" 60
+    # Wait for EventBus to be ready
+    sleep 5
+    wait_for_pod argo-events "eventbus-name=default" 60
 
-# Wait for EventSource to be ready
-wait_for_pod argo-events "eventsource-name=mysql-ops-webhook" 60
-
-# Wait for Sensor to be ready
-wait_for_pod argo-events "sensor-name=mysql-ops-sensor" 60
+    # Wait for Sensor to be ready
+    wait_for_pod argo-events "sensor-name=mysql-ops-sensor" 60
+fi
 
 # Step 7: Deploy the API
 log "Deploying the API service..."
@@ -281,7 +297,14 @@ log "Deploying the API service..."
 kubectl apply -f api-deployment.yaml
 
 # Wait for API to be ready
-wait_for_pod argo "app=argo-mysql-ops-api" 120
+if ! wait_for_pod argo "app=argo-mysql-ops-api" 120; then
+    warning "API readiness check timed out, checking if pod is running..."
+    if kubectl get pods -n argo -l "app=argo-mysql-ops-api" | grep -q "Running"; then
+        log "API is running, continuing deployment..."
+    else
+        error "API failed to start"
+    fi
+fi
 
 # Step 8: Setup port forwards and display access information
 echo ""
@@ -309,11 +332,10 @@ echo "   Connect with: mysql -h 127.0.0.1 -P 3306 -u root -p"
 echo "   Password: password123"
 echo ""
 
-# Frontend
-echo "4. Frontend (if you want to run it):"
-echo "   cd frontend"
-echo "   npm install"
-echo "   npm start"
+# Frontend (now integrated into the API container)
+echo "4. Frontend Access:"
+echo "   http://localhost:8080 (served by the API container)"
+echo "   Note: Frontend is now built-in to the API container"
 echo ""
 
 # Quick test
@@ -329,6 +351,11 @@ echo "# Delete user 3:"
 echo 'curl -X POST http://localhost:8080/api/v1/mysql/operations/delete-user \'
 echo '  -H "Content-Type: application/json" \'
 echo '  -d '"'"'{"user_id": 3}'"'"''
+echo ""
+echo -e "${BLUE}Scheduled Operations:${NC}"
+echo "- Health Check: Runs every 2 minutes"
+echo "- User Count: Runs every 5 minutes"
+echo "- Both will appear in the frontend UI automatically!"
 echo ""
 
 # Check deployment status

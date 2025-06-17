@@ -153,11 +153,30 @@ kubectl get pods -n argo -l app=argo-mysql-ops-api
 
 ### 5. Access the Application
 
+The easiest way to access the application is using the included demo script:
+
 ```bash
-# Set up port forwarding to access the API
+# Start the demo environment (recommended)
+./local_demo_simple.sh
+
+# This will:
+# - Set up port forwarding for API/Frontend (port 8080)
+# - Set up port forwarding for Argo UI (port 2746) 
+# - Set up port forwarding for MySQL (port 3306)
+# - Show access URLs and test commands
+```
+
+Or manually set up port forwarding:
+
+```bash
+# Set up port forwarding to access the API and Frontend
 kubectl port-forward svc/argo-mysql-ops-api -n argo 8080:80
 
-# The API is now accessible at http://localhost:8080
+# Access Argo Workflows UI
+kubectl port-forward svc/argo-workflows-server -n argo 2746:2746
+
+# The combined API and Frontend is accessible at http://localhost:8080
+# The Argo Workflows UI is accessible at http://localhost:2746
 ```
 
 ### 6. Run the React Frontend (Optional)
@@ -215,6 +234,28 @@ Currently implemented operations:
 - `/api/v1/mysql/operations/delete-user`: Delete a user by ID via event-driven workflow
 
 The system uses an event-driven architecture where API calls trigger events that are processed by Argo Events, which then trigger the corresponding Argo Workflows.
+
+## Scheduled Operations
+
+The system includes automated scheduled operations that demonstrate the calendar-based event functionality:
+
+### Health Check Operations
+- **Frequency**: Every 2 minutes
+- **Purpose**: Verify database connectivity and table status
+- **Workflow**: `health-check-*`
+- **Operations**:
+  - Check database connection
+  - Verify table record counts
+
+### User Count Operations  
+- **Frequency**: Every 5 minutes
+- **Purpose**: Generate user statistics and activity reports
+- **Workflow**: `user-count-*`
+- **Operations**:
+  - Count users by status
+  - Generate activity metrics
+
+These scheduled workflows will appear automatically in the frontend and can be monitored through the Argo Workflows UI. They provide a continuous demonstration of the event-driven architecture.
 
 ## Sample Database
 
@@ -370,6 +411,12 @@ In the UI, you can:
    - Check workflow status: `kubectl get workflows -n argo`
    - Check workflow logs: `kubectl logs -n argo -l app=argo-workflows-server`
 
+6. **Frontend not loading (blank page)**:
+   - Check if static assets are accessible: `curl -I http://localhost:8080/static/js/`
+   - Verify React build configuration in `frontend/package.json` has `"homepage": "/"`
+   - If needed, rebuild frontend and Docker image: `cd frontend && npm run build && cd .. && docker build --no-cache -t argo-mysql-ops:latest .`
+   - Restart deployment: `kubectl rollout restart deployment/argo-mysql-ops-api -n argo`
+
 ## Deployment Scripts
 
 ### Deploy Script (`./deploy.sh`)
@@ -421,3 +468,35 @@ The cleanup script removes:
 - Optionally: Argo installations
 - Optionally: Kubernetes namespaces
 - Docker images
+
+### Local Demo Script (`./local_demo_simple.sh`)
+
+For easy local testing and demonstration:
+
+```bash
+# Start demo environment with port forwarding
+./local_demo_simple.sh
+
+# The script will:
+# - Check cluster connectivity and deployments
+# - Set up port forwarding for all services
+# - Test endpoints
+# - Display access URLs and test commands
+# - Keep running until Ctrl+C
+
+# Optional: Check demo status
+./local_demo_simple.sh --status
+
+# Stop demo environment
+./local_demo_simple.sh --stop
+```
+
+**Services Exposed:**
+- **Frontend & API**: http://localhost:8080
+- **Argo Workflows UI**: http://localhost:2746  
+- **MySQL Database**: localhost:3306
+
+**Important Notes:**
+- Use `local_demo_simple.sh` instead of `local_demo.sh` to avoid Docker Desktop issues
+- The script uses safer port forward cleanup to prevent cluster crashes
+- All scheduled workflows will start appearing within 2-5 minutes of startup

@@ -1,5 +1,5 @@
 ### Helm template
 # Chart dependencies
 **/charts/*.tgz
-.claude
 frontend/node_modules
+frontend/build
