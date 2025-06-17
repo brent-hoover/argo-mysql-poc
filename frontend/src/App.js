@@ -14,8 +14,10 @@ function App() {
       const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || '';
       const response = await fetch(`${apiBaseUrl}/api/v1/workflows`);
       const data = await response.json();
-      if (data.status === 'success') {
+      if (data.status === 'success' && data.workflows) {
         setWorkflows(data.workflows);
+      } else {
+        setWorkflows([]);
       }
       setLastUpdate(new Date());
     } catch (error) {

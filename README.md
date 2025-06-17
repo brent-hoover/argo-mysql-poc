@@ -38,13 +38,29 @@ This project demonstrates an event-driven architecture using Argo Workflows and 
 
 ## Setup Instructions
 
-### 0. Clone the Repository
+### Quick Start (Automated)
+
+For a complete automated deployment:
 
 ```bash
 # Clone this repository
 git clone <repository-url>
-cd argo-poc
+cd argo-mysql-poc
+
+# Run the deployment script
+./deploy.sh
+
+# The script will:
+# - Check prerequisites
+# - Install Argo Workflows and Events
+# - Build Docker images
+# - Deploy all components
+# - Provide access information
 ```
+
+### Manual Setup
+
+If you prefer to install step by step or need to customize the installation:
 
 ### 1. Install Argo Workflows
 
@@ -95,9 +111,18 @@ kubectl apply -f rbac.yaml
 kubectl get pods -n argo -l app=mysql
 ```
 
-### 3. Deploy Argo Events
+### 3. Install Argo Events
 
 ```bash
+# Create namespace for Argo Events
+kubectl create namespace argo-events
+
+# Install Argo Events
+kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-events/stable/manifests/install.yaml
+
+# Wait for controller to be ready
+kubectl wait --for=condition=ready pod -l app=controller-manager -n argo-events --timeout=60s
+
 # Deploy Argo Events components
 kubectl apply -f argo-events-eventbus-local.yaml
 kubectl apply -f argo-events-eventsource.yaml
@@ -105,7 +130,7 @@ kubectl apply -f argo-events-sensor.yaml
 kubectl apply -f argo-events-rbac.yaml
 
 # Verify Argo Events is running
-kubectl get pods -n argo -l app.kubernetes.io/part-of=argo-events
+kubectl get pods -n argo-events
 ```
 
 ### 4. Build and Deploy the Go API
@@ -185,28 +210,15 @@ curl -X POST http://localhost:8080/api/v1/mysql/operations/delete-user \
 
 ### Available Operations
 
-Currently implemented specific operations:
+Currently implemented operations:
 
-- `/api/v1/mysql/operations/delete-user`: Delete a user by ID via event-driven workflow (includes backing up user data first)
+- `/api/v1/mysql/operations/delete-user`: Delete a user by ID via event-driven workflow
 
 The system uses an event-driven architecture where API calls trigger events that are processed by Argo Events, which then trigger the corresponding Argo Workflows.
 
-Additional operations can be implemented by:
-1. Adding new API endpoints in `main.go`
-2. Creating corresponding Argo Events sensors  
-3. Defining new workflow templates
-
 ## Sample Database
 
-The deployed MySQL database includes the following sample data:
-
-- **Users**: 5 sample users with different statuses
-- **Organizations**: 3 sample organizations
-- **Organization Members**: Mapping users to organizations with roles
-- **Application Data**: Sample application configuration data
-- **Audit Logs**: Sample user activity logs
-
-This data can be used to test the various operations provided by the API.
+The deployed MySQL database includes a sample `users` table with 5 sample users with different statuses (active, inactive, pending).
 
 ## Security Considerations
 
@@ -221,16 +233,9 @@ This data can be used to test the various operations provided by the API.
 
 To add a new operation:
 
-1. Create a new dedicated endpoint in `main.go` following the pattern of `/api/v1/mysql/operations/delete-user`
-2. Create corresponding Argo Events sensor configuration
-3. Design the specific workflow steps for that operation  
-4. Implement proper validation for the operation's parameters
-5. If needed, add any SQL templates to the `argo-mysql-ops-templates` ConfigMap
-6. Apply the changes to your cluster:
-   ```bash
-   kubectl apply -f operation-templates.yaml
-   kubectl apply -f argo-events-sensor.yaml
-   ```
+1. Add SQL template to `operation-templates.yaml`
+2. Use the existing `run-query` workflow template
+3. Create API endpoint and sensor configuration
 
 ### Local Development
 
@@ -364,3 +369,55 @@ In the UI, you can:
 5. **Argo Workflows errors**:
    - Check workflow status: `kubectl get workflows -n argo`
    - Check workflow logs: `kubectl logs -n argo -l app=argo-workflows-server`
+
+## Deployment Scripts
+
+### Deploy Script (`./deploy.sh`)
+
+The deployment script provides a complete automated setup:
+
+```bash
+# Basic deployment
+./deploy.sh
+
+# Available options:
+./deploy.sh --help                    # Show help
+./deploy.sh --skip-prereq-check       # Skip prerequisite checking
+./deploy.sh --skip-argo-install       # Skip Argo installations
+./deploy.sh --build-only              # Only build Docker images
+./deploy.sh --deploy-only             # Only deploy, don't build
+./deploy.sh --image-tag v1.0          # Use custom image tag
+```
+
+The script automatically:
+- Detects your Kubernetes environment (Docker Desktop, Minikube, Kind, etc.)
+- Installs all prerequisites
+- Builds and loads Docker images appropriately
+- Deploys all components in the correct order
+- Waits for services to be ready
+- Provides access information and test commands
+
+### Cleanup Script (`./cleanup.sh`)
+
+For complete removal:
+
+```bash
+# Remove only POC components (keeps Argo installations)
+./cleanup.sh
+
+# Available options:
+./cleanup.sh --help                   # Show help
+./cleanup.sh --remove-argo            # Also remove Argo Workflows/Events
+./cleanup.sh --remove-namespaces      # Also remove namespaces
+./cleanup.sh --force                  # Skip confirmation prompts
+
+# Complete removal
+./cleanup.sh --remove-argo --remove-namespaces --force
+```
+
+The cleanup script removes:
+- All POC application components
+- MySQL database and data
+- Optionally: Argo installations
+- Optionally: Kubernetes namespaces
+- Docker images

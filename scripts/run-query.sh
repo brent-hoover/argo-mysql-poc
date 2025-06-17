@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # scripts/run-query.sh
 set -e
 
@@ -18,4 +18,4 @@ echo "Received connection string: $1"
 QUERY=$2
 
 echo "Connecting to MySQL: Host=$HOST, Port=$PORT, DB=$DB, User=$USER"
-mysql -h $HOST -P $PORT -u $USER -p$PASSWORD $DB -e "$QUERY"
+mariadb -h $HOST -P $PORT -u $USER -p$PASSWORD $DB --skip-ssl -e "$QUERY"

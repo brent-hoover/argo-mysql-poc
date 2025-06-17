@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import WorkflowDetails from './WorkflowDetails';
 
-function WorkflowList({ workflows, loading }) {
+function WorkflowList({ workflows = [], loading }) {
   const [selectedWorkflow, setSelectedWorkflow] = useState(null);
 
   const getStatusBadgeClass = (status) => {

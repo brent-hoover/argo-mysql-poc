@@ -60,6 +60,7 @@ spec:
       containers:
       - image: mysql:8.0
         name: mysql
+        args: ["--ssl=0", "--default-authentication-plugin=mysql_native_password"]
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
